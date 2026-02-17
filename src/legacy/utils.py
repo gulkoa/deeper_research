@@ -5,7 +5,6 @@ import datetime
 import requests
 import random 
 import concurrent
-import hashlib
 import aiohttp
 import httpx
 import time
@@ -1595,16 +1594,16 @@ def split_and_rerank_search_results(embeddings: Embeddings, query: str, search_r
 
 def stitch_documents_by_url(documents: list[Document]) -> list[Document]:
     url_to_docs: defaultdict[str, list[Document]] = defaultdict(list)
-    url_to_snippet_hashes: defaultdict[str, set[str]] = defaultdict(set)
+    url_to_seen_content: defaultdict[str, set[str]] = defaultdict(set)
     for doc in documents:
-        snippet_hash = hashlib.sha256(doc.page_content.encode()).hexdigest()
         url = doc.metadata['url']
+        content = doc.page_content
         # deduplicate snippets by the content
-        if snippet_hash in url_to_snippet_hashes[url]:
+        if content in url_to_seen_content[url]:
             continue
 
         url_to_docs[url].append(doc)
-        url_to_snippet_hashes[url].add(snippet_hash)
+        url_to_seen_content[url].add(content)
 
     # stitch retrieved chunks into a single doc per URL
     stitched_docs = []
