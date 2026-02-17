@@ -276,7 +276,7 @@ async def azureaisearch_search_async(search_queries: list[str], max_results: int
 
 
 @traceable
-def perplexity_search(search_queries):
+async def perplexity_search(search_queries):
     """Search the web using the Perplexity API.
     
     Args:
@@ -308,65 +308,67 @@ def perplexity_search(search_queries):
         "Authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}"
     }
     
-    search_docs = []
-    for query in search_queries:
+    async with httpx.AsyncClient() as client:
+        async def process_query(query):
+            payload = {
+                "model": "sonar-pro",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "Search the web and provide factual information with sources."
+                    },
+                    {
+                        "role": "user",
+                        "content": query
+                    }
+                ]
+            }
 
-        payload = {
-            "model": "sonar-pro",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "Search the web and provide factual information with sources."
-                },
-                {
-                    "role": "user",
-                    "content": query
-                }
-            ]
-        }
-        
-        response = requests.post(
-            "https://api.perplexity.ai/chat/completions",
-            headers=headers,
-            json=payload
-        )
-        response.raise_for_status()  # Raise exception for bad status codes
-        
-        # Parse the response
-        data = response.json()
-        content = data["choices"][0]["message"]["content"]
-        citations = data.get("citations", ["https://perplexity.ai"])
-        
-        # Create results list for this query
-        results = []
-        
-        # First citation gets the full content
-        results.append({
-            "title": f"Perplexity Search, Source 1",
-            "url": citations[0],
-            "content": content,
-            "raw_content": content,
-            "score": 1.0  # Adding score to match Tavily format
-        })
-        
-        # Add additional citations without duplicating content
-        for i, citation in enumerate(citations[1:], start=2):
+            response = await client.post(
+                "https://api.perplexity.ai/chat/completions",
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()  # Raise exception for bad status codes
+
+            # Parse the response
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            citations = data.get("citations", ["https://perplexity.ai"])
+
+            # Create results list for this query
+            results = []
+
+            # First citation gets the full content
             results.append({
-                "title": f"Perplexity Search, Source {i}",
-                "url": citation,
-                "content": "See primary source for full content",
-                "raw_content": None,
-                "score": 0.5  # Lower score for secondary sources
+                "title": f"Perplexity Search, Source 1",
+                "url": citations[0],
+                "content": content,
+                "raw_content": content,
+                "score": 1.0  # Adding score to match Tavily format
             })
+
+            # Add additional citations without duplicating content
+            for i, citation in enumerate(citations[1:], start=2):
+                results.append({
+                    "title": f"Perplexity Search, Source {i}",
+                    "url": citation,
+                    "content": "See primary source for full content",
+                    "raw_content": None,
+                    "score": 0.5  # Lower score for secondary sources
+                })
+
+            # Format response to match Tavily structure
+            return {
+                "query": query,
+                "follow_up_questions": None,
+                "answer": None,
+                "images": [],
+                "results": results
+            }
         
-        # Format response to match Tavily structure
-        search_docs.append({
-            "query": query,
-            "follow_up_questions": None,
-            "answer": None,
-            "images": [],
-            "results": results
-        })
+        tasks = [process_query(query) for query in search_queries]
+        search_docs = await asyncio.gather(*tasks)
     
     return search_docs
 
@@ -1520,7 +1522,7 @@ async def select_and_execute_search(search_api: str, query_list: list[str], para
         # DuckDuckGo search tool used with both workflow and agent 
         return await duckduckgo_search.ainvoke({'search_queries': query_list})
     elif search_api == "perplexity":
-        search_results = perplexity_search(query_list, **params_to_pass)
+        search_results = await perplexity_search(query_list, **params_to_pass)
     elif search_api == "exa":
         search_results = await exa_search(query_list, **params_to_pass)
     elif search_api == "arxiv":
