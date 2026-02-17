@@ -126,14 +126,14 @@ async def tavily_search(
     if not summarized_results:
         return "No valid search results found. Please try different search queries or use a different search API."
     
-    formatted_output = "Search results: \n\n"
+    formatted_output_list = ["Search results: \n\n"]
     for i, (url, result) in enumerate(summarized_results.items()):
-        formatted_output += f"\n\n--- SOURCE {i+1}: {result['title']} ---\n"
-        formatted_output += f"URL: {url}\n\n"
-        formatted_output += f"SUMMARY:\n{result['content']}\n\n"
-        formatted_output += "\n\n" + "-" * 80 + "\n"
+        formatted_output_list.append(f"\n\n--- SOURCE {i+1}: {result['title']} ---\n")
+        formatted_output_list.append(f"URL: {url}\n\n")
+        formatted_output_list.append(f"SUMMARY:\n{result['content']}\n\n")
+        formatted_output_list.append("\n\n" + "-" * 80 + "\n")
     
-    return formatted_output
+    return "".join(formatted_output_list)
 
 async def tavily_search_async(
     search_queries, 
