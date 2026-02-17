@@ -118,6 +118,20 @@ This creates `tests/expt_results/deep_research_bench_model-name.jsonl` with the 
 
 Follow the [quickstart](#-quickstart) to start LangGraph server locally and test the agent out on LangGraph Studio.
 
+#### Command Line Interface (CLI)
+
+You can run the researcher from the command line:
+
+```bash
+open-deep-research research "Your research topic"
+```
+
+Options:
+- `--max-depth`: Max researcher iterations (default: 3)
+- `--max-concurrent`: Max concurrent research units (default: 3)
+- `--research-model`: Model for research (default: openai:gpt-4.1)
+- `--search-api`: Search API to use (tavily, openai, anthropic) (default: tavily)
+
 #### Hosted deployment
  
 You can easily deploy to [LangGraph Platform](https://langchain-ai.github.io/langgraph/concepts/#deployment-options). 
