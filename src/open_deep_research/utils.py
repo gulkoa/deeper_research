@@ -182,6 +182,10 @@ async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
     Returns:
         Formatted summary with key excerpts, or original content if summarization fails
     """
+    # Optimization: Skip summarization for short content to save latency and cost
+    if len(webpage_content) < 3000:
+        return webpage_content
+
     try:
         # Create prompt with current date context
         prompt_content = summarize_webpage_prompt.format(
