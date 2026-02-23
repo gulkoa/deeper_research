@@ -2907,7 +2907,6 @@ dependencies = [
     { name = "langchain-openai" },
     { name = "langchain-tavily" },
     { name = "langgraph" },
-    { name = "langgraph-cli", extra = ["inmem"] },
     { name = "langsmith" },
     { name = "linkup-sdk" },
     { name = "markdownify" },
@@ -2927,6 +2926,7 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "langgraph-cli", extra = ["inmem"] },
     { name = "mypy" },
     { name = "ruff" },
 ]
@@ -2954,7 +2954,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=0.3.28" },
     { name = "langchain-tavily" },
     { name = "langgraph", specifier = ">=0.5.4" },
-    { name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.3.1" },
+    { name = "langgraph-cli", extras = ["inmem"], marker = "extra == 'dev'", specifier = ">=0.3.1" },
     { name = "langsmith", specifier = ">=0.3.37" },
     { name = "linkup-sdk", specifier = ">=0.2.3" },
     { name = "markdownify", specifier = ">=0.11.6" },
