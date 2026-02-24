@@ -36,6 +36,38 @@ from open_deep_research.state import ResearchComplete, Summary
 ##########################
 # Tavily Search Tool Utils
 ##########################
+
+# Cache for summarization models to avoid repeated initialization
+_SUMMARIZATION_MODEL_CACHE = {}
+
+def _get_summarization_model(model_name: str, max_tokens: int, api_key: str | None, max_retries: int):
+    """Get or create a cached summarization model instance.
+
+    Args:
+        model_name: Name of the model to use
+        max_tokens: Maximum tokens for the model
+        api_key: API key for the model
+        max_retries: Maximum number of retries for structured output
+
+    Returns:
+        Initialized model runnable with structured output and retry logic
+    """
+    cache_key = (model_name, max_tokens, api_key, max_retries)
+    if cache_key in _SUMMARIZATION_MODEL_CACHE:
+        return _SUMMARIZATION_MODEL_CACHE[cache_key]
+
+    summarization_model = init_chat_model(
+        model=model_name,
+        max_tokens=max_tokens,
+        api_key=api_key,
+        tags=["langsmith:nostream"]
+    ).with_structured_output(Summary).with_retry(
+        stop_after_attempt=max_retries
+    )
+
+    _SUMMARIZATION_MODEL_CACHE[cache_key] = summarization_model
+    return summarization_model
+
 TAVILY_SEARCH_DESCRIPTION = (
     "A search engine optimized for comprehensive, accurate, and trusted results. "
     "Useful for when you need to answer questions about current events."
@@ -81,15 +113,14 @@ async def tavily_search(
     # Character limit to stay within model token limits (configurable)
     max_char_to_include = configurable.max_content_length
     
-    # Initialize summarization model with retry logic
+    # Initialize summarization model with retry logic (cached for performance)
     model_api_key = get_api_key_for_model(configurable.summarization_model, config)
-    summarization_model = init_chat_model(
-        model=configurable.summarization_model,
+
+    summarization_model = _get_summarization_model(
+        model_name=configurable.summarization_model,
         max_tokens=configurable.summarization_model_max_tokens,
         api_key=model_api_key,
-        tags=["langsmith:nostream"]
-    ).with_structured_output(Summary).with_retry(
-        stop_after_attempt=configurable.max_structured_output_retries
+        max_retries=configurable.max_structured_output_retries
     )
     
     # Step 4: Create summarization tasks (skip empty content)
