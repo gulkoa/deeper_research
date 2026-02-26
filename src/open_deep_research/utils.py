@@ -33,6 +33,27 @@ from open_deep_research.configuration import Configuration, SearchAPI
 from open_deep_research.prompts import summarize_webpage_prompt
 from open_deep_research.state import ResearchComplete, Summary
 
+# Cache for summarization models to avoid repeated initialization overhead
+_SUMMARIZATION_MODEL_CACHE = {}
+
+def _get_summarization_model(model_name: str, max_tokens: int, api_key: str | None, max_retries: int):
+    """Get or create a cached summarization model.
+
+    This avoids the overhead of re-initializing the model and reprocessing the
+    structured output schema on every search tool call.
+    """
+    key = (model_name, max_tokens, api_key, max_retries)
+    if key not in _SUMMARIZATION_MODEL_CACHE:
+        _SUMMARIZATION_MODEL_CACHE[key] = init_chat_model(
+            model=model_name,
+            max_tokens=max_tokens,
+            api_key=api_key,
+            tags=["langsmith:nostream"]
+        ).with_structured_output(Summary).with_retry(
+            stop_after_attempt=max_retries
+        )
+    return _SUMMARIZATION_MODEL_CACHE[key]
+
 ##########################
 # Tavily Search Tool Utils
 ##########################
@@ -83,13 +104,11 @@ async def tavily_search(
     
     # Initialize summarization model with retry logic
     model_api_key = get_api_key_for_model(configurable.summarization_model, config)
-    summarization_model = init_chat_model(
-        model=configurable.summarization_model,
+    summarization_model = _get_summarization_model(
+        model_name=configurable.summarization_model,
         max_tokens=configurable.summarization_model_max_tokens,
         api_key=model_api_key,
-        tags=["langsmith:nostream"]
-    ).with_structured_output(Summary).with_retry(
-        stop_after_attempt=configurable.max_structured_output_retries
+        max_retries=configurable.max_structured_output_retries
     )
     
     # Step 4: Create summarization tasks (skip empty content)
