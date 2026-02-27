@@ -6,6 +6,7 @@ import os
 import warnings
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, Dict, List, Literal, Optional
+import functools
 
 import aiohttp
 from langchain.chat_models import init_chat_model
@@ -36,6 +37,19 @@ from open_deep_research.state import ResearchComplete, Summary
 ##########################
 # Tavily Search Tool Utils
 ##########################
+
+@functools.lru_cache(maxsize=10)
+def _get_summarization_model(model_name: str, max_tokens: int, api_key: str | None, max_retries: int):
+    """Get or create a cached summarization model instance."""
+    return init_chat_model(
+        model=model_name,
+        max_tokens=max_tokens,
+        api_key=api_key,
+        tags=["langsmith:nostream"]
+    ).with_structured_output(Summary).with_retry(
+        stop_after_attempt=max_retries
+    )
+
 TAVILY_SEARCH_DESCRIPTION = (
     "A search engine optimized for comprehensive, accurate, and trusted results. "
     "Useful for when you need to answer questions about current events."
@@ -83,13 +97,13 @@ async def tavily_search(
     
     # Initialize summarization model with retry logic
     model_api_key = get_api_key_for_model(configurable.summarization_model, config)
-    summarization_model = init_chat_model(
-        model=configurable.summarization_model,
+
+    # Use cached model initialization
+    summarization_model = _get_summarization_model(
+        model_name=configurable.summarization_model,
         max_tokens=configurable.summarization_model_max_tokens,
         api_key=model_api_key,
-        tags=["langsmith:nostream"]
-    ).with_structured_output(Summary).with_retry(
-        stop_after_attempt=configurable.max_structured_output_retries
+        max_retries=configurable.max_structured_output_retries
     )
     
     # Step 4: Create summarization tasks (skip empty content)
