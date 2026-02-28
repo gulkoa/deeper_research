@@ -127,13 +127,15 @@ def deduplicate_and_format_sources(
         raise ValueError(f"Invalid deduplication strategy: {deduplication_strategy}")
 
     # Format output
-    formatted_text = "Content from sources:\n"
+    # ⚡ Bolt Optimization: Replaced O(N^2) string concatenation (+=) with O(N) list builder and "".join()
+    # Performance Impact: Significantly reduces memory reallocations when building large strings from multiple sources
+    formatted_parts = ["Content from sources:\n"]
     for i, source in enumerate(unique_sources.values(), 1):
-        formatted_text += f"{'='*80}\n"  # Clear section separator
-        formatted_text += f"Source: {source['title']}\n"
-        formatted_text += f"{'-'*80}\n"  # Subsection separator
-        formatted_text += f"URL: {source['url']}\n===\n"
-        formatted_text += f"Most relevant content from source: {source['content']}\n===\n"
+        formatted_parts.append(f"{'='*80}\n")  # Clear section separator
+        formatted_parts.append(f"Source: {source['title']}\n")
+        formatted_parts.append(f"{'-'*80}\n")  # Subsection separator
+        formatted_parts.append(f"URL: {source['url']}\n===\n")
+        formatted_parts.append(f"Most relevant content from source: {source['content']}\n===\n")
         if include_raw_content:
             # Using rough estimate of 4 characters per token
             char_limit = max_tokens_per_source * 4
@@ -144,16 +146,17 @@ def deduplicate_and_format_sources(
                 print(f"Warning: No raw_content found for source {source['url']}")
             if len(raw_content) > char_limit:
                 raw_content = raw_content[:char_limit] + "... [truncated]"
-            formatted_text += f"Full source content limited to {max_tokens_per_source} tokens: {raw_content}\n\n"
-        formatted_text += f"{'='*80}\n\n" # End section separator
+            formatted_parts.append(f"Full source content limited to {max_tokens_per_source} tokens: {raw_content}\n\n")
+        formatted_parts.append(f"{'='*80}\n\n") # End section separator
                 
-    return formatted_text.strip()
+    return "".join(formatted_parts).strip()
 
 def format_sections(sections: list[Section]) -> str:
     """ Format a list of sections into a string """
-    formatted_str = ""
+    # ⚡ Bolt Optimization: Using list builder instead of += for O(N) string construction
+    formatted_parts = []
     for idx, section in enumerate(sections, 1):
-        formatted_str += f"""
+        formatted_parts.append(f"""
 {'='*60}
 Section {idx}: {section.name}
 {'='*60}
@@ -165,8 +168,8 @@ Requires Research:
 Content:
 {section.content if section.content else '[Not yet written]'}
 
-"""
-    return formatted_str
+""")
+    return "".join(formatted_parts)
 
 @traceable
 async def tavily_search_async(search_queries, max_results: int = 5, topic: Literal["general", "news", "finance"] = "general", include_raw_content: bool = True):
@@ -1235,15 +1238,17 @@ async def scrape_pages(titles: List[str], urls: List[str]) -> str:
                 pages.append(f"Error fetching URL: {str(e)}")
         
         # Create formatted output
-        formatted_output = f"Search results: \n\n"
+        # ⚡ Bolt Optimization: Replaced O(N^2) string concatenation (+=) with O(N) list builder and "".join()
+        # Performance Impact: Crucial for large scraped pages where string reallocation overhead is severe
+        formatted_parts = ["Search results: \n\n"]
         
         for i, (title, url, page) in enumerate(zip(titles, urls, pages)):
-            formatted_output += f"\n\n--- SOURCE {i+1}: {title} ---\n"
-            formatted_output += f"URL: {url}\n\n"
-            formatted_output += f"FULL CONTENT:\n {page}"
-            formatted_output += "\n\n" + "-" * 80 + "\n"
+            formatted_parts.append(f"\n\n--- SOURCE {i+1}: {title} ---\n")
+            formatted_parts.append(f"URL: {url}\n\n")
+            formatted_parts.append(f"FULL CONTENT:\n {page}")
+            formatted_parts.append("\n\n" + "-" * 80 + "\n")
         
-    return formatted_output
+    return "".join(formatted_parts)
 
 @tool
 async def duckduckgo_search(search_queries: List[str]):
@@ -1387,9 +1392,6 @@ async def tavily_search(
         include_raw_content=True
     )
 
-    # Format the search results directly using the raw_content already provided
-    formatted_output = f"Search results: \n\n"
-    
     # Deduplicate results by URL
     unique_results = {}
     for response in search_results:
@@ -1440,16 +1442,18 @@ async def tavily_search(
         }
 
     # Format the unique results
+    # ⚡ Bolt Optimization: O(N) string construction with list.append() instead of string concatenation (+=)
+    formatted_parts = ["Search results: \n\n"]
     for i, (url, result) in enumerate(unique_results.items()):
-        formatted_output += f"\n\n--- SOURCE {i+1}: {result['title']} ---\n"
-        formatted_output += f"URL: {url}\n\n"
-        formatted_output += f"SUMMARY:\n{result['content']}\n\n"
+        formatted_parts.append(f"\n\n--- SOURCE {i+1}: {result['title']} ---\n")
+        formatted_parts.append(f"URL: {url}\n\n")
+        formatted_parts.append(f"SUMMARY:\n{result['content']}\n\n")
         if result.get('raw_content'):
-            formatted_output += f"FULL CONTENT:\n{result['raw_content'][:max_char_to_include]}"  # Limit content size
-        formatted_output += "\n\n" + "-" * 80 + "\n"
+            formatted_parts.append(f"FULL CONTENT:\n{result['raw_content'][:max_char_to_include]}")  # Limit content size
+        formatted_parts.append("\n\n" + "-" * 80 + "\n")
     
     if unique_results:
-        return formatted_output
+        return "".join(formatted_parts)
     else:
         return "No valid search results found. Please try different search queries or use a different search API."
 
@@ -1473,9 +1477,6 @@ async def azureaisearch_search(queries: List[str], max_results: int = 5, topic: 
         include_raw_content=True
     )
 
-    # Format the search results directly using the raw_content already provided
-    formatted_output = f"Search results: \n\n"
-    
     # Deduplicate results by URL
     unique_results = {}
     for response in search_results:
@@ -1485,16 +1486,18 @@ async def azureaisearch_search(queries: List[str], max_results: int = 5, topic: 
                 unique_results[url] = result
     
     # Format the unique results
+    # ⚡ Bolt Optimization: O(N) string construction with list.append() instead of string concatenation (+=)
+    formatted_parts = ["Search results: \n\n"]
     for i, (url, result) in enumerate(unique_results.items()):
-        formatted_output += f"\n\n--- SOURCE {i+1}: {result['title']} ---\n"
-        formatted_output += f"URL: {url}\n\n"
-        formatted_output += f"SUMMARY:\n{result['content']}\n\n"
+        formatted_parts.append(f"\n\n--- SOURCE {i+1}: {result['title']} ---\n")
+        formatted_parts.append(f"URL: {url}\n\n")
+        formatted_parts.append(f"SUMMARY:\n{result['content']}\n\n")
         if result.get('raw_content'):
-            formatted_output += f"FULL CONTENT:\n{result['raw_content'][:30000]}"  # Limit content size
-        formatted_output += "\n\n" + "-" * 80 + "\n"
+            formatted_parts.append(f"FULL CONTENT:\n{result['raw_content'][:30000]}")  # Limit content size
+        formatted_parts.append("\n\n" + "-" * 80 + "\n")
     
     if unique_results:
-        return formatted_output
+        return "".join(formatted_parts)
     else:
         return "No valid search results found. Please try different search queries or use a different search API."
 
